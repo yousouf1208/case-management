@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Calendar, momentLocalizer } from 'react-big-calendar';
-import moment from 'moment';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+const locales = {
+  'en-US': require('date-fns/locale/en-US')
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
 
 interface Forecast {
   id: string;
@@ -10,48 +23,61 @@ interface Forecast {
   title: string;
   start_date: string;
   end_date?: string;
-  notes?: string;
 }
 
 interface ForecastCalendarProps {
   isAdmin?: boolean;
 }
 
-const localizer = momentLocalizer(moment);
-
 export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
+  const { user } = useAuth();
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
+
+  useEffect(() => {
+    loadUsers();
+    loadForecasts();
+  }, [selectedUserId]);
+
+  const loadUsers = async () => {
+    if (!isAdmin) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .order('username', { ascending: true });
+
+    if (error) console.error('Error loading users:', error);
+    else setUsers(data || []);
+  };
 
   const loadForecasts = async () => {
     let query = supabase.from('forecasts').select('*');
 
-    if (!isAdmin && selectedUserId) {
+    if (!isAdmin) {
+      query = query.eq('user_id', user?.id);
+    } else if (selectedUserId) {
       query = query.eq('user_id', selectedUserId);
     }
 
     const { data, error } = await query.order('start_date', { ascending: true });
-    if (error) return console.error('Error loading forecasts:', error);
-    setForecasts(data || []);
+    if (error) console.error('Error loading forecasts:', error);
+    else setForecasts(data || []);
   };
 
-  useEffect(() => {
-    loadForecasts();
-  }, [selectedUserId]);
-
   const handleAddForecast = async () => {
-    const title = prompt('Forecast title:');
-    const start = prompt('Start date (YYYY-MM-DD):');
-    if (!title || !start) return alert('Title and start date are required');
+    const title = prompt('Enter forecast title');
+    if (!title) return;
 
     const { data, error } = await supabase.from('forecasts').insert({
+      user_id: isAdmin && selectedUserId ? selectedUserId : user?.id,
       title,
-      start_date: start,
-      user_id: selectedUserId || supabase.auth.getUser()?.data.user?.id,
+      start_date: new Date().toISOString(),
     });
 
-    if (error) return alert('Error adding forecast: ' + error.message);
-    loadForecasts();
+    if (error) console.error('Error adding forecast:', error);
+    else loadForecasts();
   };
 
   const events = forecasts.map(f => ({
@@ -65,13 +91,16 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
     <div className="p-4">
       {isAdmin && (
         <div className="mb-4">
-          <label className="block mb-2">Select User:</label>
+          <label className="mr-2 font-medium">Select User:</label>
           <select
-            className="border px-3 py-2 rounded"
-            onChange={e => setSelectedUserId(e.target.value)}
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="border px-2 py-1 rounded"
           >
-            <option value="">-- All Users --</option>
-            {/* Fetch users dynamically */}
+            <option value="">All Users</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>{u.username}</option>
+            ))}
           </select>
         </div>
       )}
@@ -83,17 +112,13 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
         Add Forecast
       </button>
 
-      <div style={{ height: 500 }}>
-        <Calendar
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          defaultView="month"
-          selectable
-        />
-      </div>
+      <Calendar
+        localizer={localizer}
+        events={events}
+        startAccessor="start"
+        endAccessor="end"
+        style={{ height: 500 }}
+      />
     </div>
   );
 }
-
