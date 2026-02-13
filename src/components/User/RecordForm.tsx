@@ -61,15 +61,20 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
     if (!error) setCustomFields(data || []);
   };
 
-  const loadUsers = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .eq('role', 'user')
-      .order('username', { ascending: true });
+ const loadUsers = async () => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, role')          // Include the role column
+    .in('role', ['user', 'admin'])        // Fetch both users and admins
+    .order('username', { ascending: true });
 
+  if (error) {
+    console.error('Error loading users:', error);
+  } else {
     setUsers(data || []);
-  };
+  }
+};
+
 
   const initializeValues = async () => {
     const initial: Record<string, string> = {};
