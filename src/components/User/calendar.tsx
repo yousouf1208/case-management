@@ -35,17 +35,15 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
 
-  // Load users (admins only)
   useEffect(() => {
-    if (isAdmin) loadUsers();
-  }, [isAdmin]);
-
-  // Load forecasts whenever the user or selectedUserId changes
-  useEffect(() => {
+    if (!user) return;
+    loadUsers();
     loadForecasts();
-  }, [user?.id, selectedUserId]);
+  }, [user, selectedUserId]);
 
   const loadUsers = async () => {
+    if (!isAdmin) return;
+
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username')
@@ -60,25 +58,27 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
 
     let query = supabase.from('forecasts').select('*');
 
-    if (isAdmin && selectedUserId) {
-      query = query.eq('user_id', selectedUserId);
-    } else if (!isAdmin) {
+    if (!isAdmin) {
       query = query.eq('user_id', user.id);
+    } else if (selectedUserId) {
+      query = query.eq('user_id', selectedUserId);
     }
 
     const { data, error } = await query.order('start_date', { ascending: true });
+
     if (error) console.error('Error loading forecasts:', error);
     else setForecasts(data || []);
   };
 
   const handleAddForecast = async () => {
     if (!user) return;
+
     const title = prompt('Enter forecast title');
     if (!title) return;
 
     const userIdToUse = isAdmin && selectedUserId ? selectedUserId : user.id;
 
-    const { error } = await supabase.from('forecasts').insert({
+    const { data, error } = await supabase.from('forecasts').insert({
       user_id: userIdToUse,
       title,
       start_date: new Date().toISOString(),
