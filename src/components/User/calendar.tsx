@@ -5,6 +5,7 @@ import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 
+// Configure locales
 const locales = {
   'en-US': require('date-fns/locale/en-US')
 };
@@ -17,6 +18,7 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+// Forecast type
 interface Forecast {
   id: string;
   user_id: string;
@@ -25,6 +27,7 @@ interface Forecast {
   end_date?: string;
 }
 
+// Props
 interface ForecastCalendarProps {
   isAdmin?: boolean;
 }
@@ -35,24 +38,29 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
 
+  // Load users (only for admin) and forecasts
   useEffect(() => {
     if (!user) return;
-    loadUsers();
+
+    if (isAdmin) loadUsers();
     loadForecasts();
   }, [user, selectedUserId]);
 
+  // Load all users for admin dropdown
   const loadUsers = async () => {
-    if (!isAdmin) return;
-
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username')
       .order('username', { ascending: true });
 
-    if (error) console.error('Error loading users:', error);
-    else setUsers(data || []);
+    if (error) {
+      console.error('Error loading users:', error);
+    } else {
+      setUsers(data || []);
+    }
   };
 
+  // Load forecasts
   const loadForecasts = async () => {
     if (!user) return;
 
@@ -66,10 +74,15 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
 
     const { data, error } = await query.order('start_date', { ascending: true });
 
-    if (error) console.error('Error loading forecasts:', error);
-    else setForecasts(data || []);
+    if (error) {
+      console.error('Error loading forecasts:', error);
+    } else {
+      setForecasts(data || []);
+      console.log('Loaded forecasts:', data);
+    }
   };
 
+  // Add new forecast
   const handleAddForecast = async () => {
     if (!user) return;
 
@@ -84,10 +97,14 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
       start_date: new Date().toISOString(),
     });
 
-    if (error) console.error('Error adding forecast:', error);
-    else loadForecasts();
+    if (error) {
+      console.error('Error adding forecast:', error);
+    } else {
+      loadForecasts();
+    }
   };
 
+  // Map forecasts to events for react-big-calendar
   const events = forecasts.map(f => ({
     id: f.id,
     title: f.title,
@@ -97,6 +114,7 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
 
   return (
     <div className="p-4">
+      {/* Admin: user selector */}
       {isAdmin && (
         <div className="mb-4">
           <label className="mr-2 font-medium">Select User:</label>
@@ -107,12 +125,15 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
           >
             <option value="">All Users</option>
             {users.map(u => (
-              <option key={u.id} value={u.id}>{u.username}</option>
+              <option key={u.id} value={u.id}>
+                {u.username || '(no username)'}
+              </option>
             ))}
           </select>
         </div>
       )}
 
+      {/* Add forecast button */}
       <button
         onClick={handleAddForecast}
         className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -120,6 +141,10 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
         Add Forecast
       </button>
 
+      {/* Debugging: show raw forecasts */}
+      <pre className="mb-4 text-sm text-gray-700">{JSON.stringify(forecasts, null, 2)}</pre>
+
+      {/* Calendar */}
       <Calendar
         localizer={localizer}
         events={events}
