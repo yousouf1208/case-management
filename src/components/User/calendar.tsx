@@ -1,5 +1,3 @@
-console.log("Calendar component loaded");
-
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,14 +35,17 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
 
+  // Load users (admins only)
   useEffect(() => {
-    loadUsers();
+    if (isAdmin) loadUsers();
+  }, [isAdmin]);
+
+  // Load forecasts whenever the user or selectedUserId changes
+  useEffect(() => {
     loadForecasts();
-  }, [selectedUserId]);
+  }, [user?.id, selectedUserId]);
 
   const loadUsers = async () => {
-    if (!isAdmin) return;
-
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username')
@@ -55,12 +56,14 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
   };
 
   const loadForecasts = async () => {
+    if (!user) return;
+
     let query = supabase.from('forecasts').select('*');
 
-    if (!isAdmin) {
-      query = query.eq('user_id', user?.id);
-    } else if (selectedUserId) {
+    if (isAdmin && selectedUserId) {
       query = query.eq('user_id', selectedUserId);
+    } else if (!isAdmin) {
+      query = query.eq('user_id', user.id);
     }
 
     const { data, error } = await query.order('start_date', { ascending: true });
@@ -69,11 +72,14 @@ export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
   };
 
   const handleAddForecast = async () => {
+    if (!user) return;
     const title = prompt('Enter forecast title');
     if (!title) return;
 
-    const { data, error } = await supabase.from('forecasts').insert({
-      user_id: isAdmin && selectedUserId ? selectedUserId : user?.id,
+    const userIdToUse = isAdmin && selectedUserId ? selectedUserId : user.id;
+
+    const { error } = await supabase.from('forecasts').insert({
+      user_id: userIdToUse,
       title,
       start_date: new Date().toISOString(),
     });
