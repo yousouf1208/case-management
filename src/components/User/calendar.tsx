@@ -1,157 +1,130 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-// Configure locales
-const locales = {
-  'en-US': require('date-fns/locale/en-US')
-};
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
-
-// Forecast type
 interface Forecast {
   id: string;
   user_id: string;
   title: string;
-  start_date: string;
-  end_date?: string;
+  description: string;
+  forecast_date: string;
+  user_email?: string;
 }
 
-// Props
-interface ForecastCalendarProps {
-  isAdmin?: boolean;
+interface CalendarProps {
+  currentDate: Date;
+  forecasts: Forecast[];
+  onDateClick: (date: Date) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  isAdmin: boolean;
 }
 
-export function ForecastCalendar({ isAdmin = false }: ForecastCalendarProps) {
-  const { user } = useAuth();
-  const [forecasts, setForecasts] = useState<Forecast[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
+export default function Calendar({
+  currentDate,
+  forecasts,
+  onDateClick,
+  onPrevMonth,
+  onNextMonth,
+  isAdmin,
+}: CalendarProps) {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
 
-  // Load users (only for admin) and forecasts
-  useEffect(() => {
-    if (!user) return;
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const startDate = new Date(firstDayOfMonth);
+  startDate.setDate(startDate.getDate() - startDate.getDay());
 
-    if (isAdmin) loadUsers();
-    loadForecasts();
-  }, [user, selectedUserId]);
+  const days: Date[] = [];
+  const current = new Date(startDate);
 
-  // Load all users for admin dropdown
-  const loadUsers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, username')
-      .order('username', { ascending: true });
+  for (let i = 0; i < 42; i++) {
+    days.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
 
-    if (error) {
-      console.error('Error loading users:', error);
-    } else {
-      setUsers(data || []);
-    }
+  const getForecastsForDate = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return forecasts.filter(f => f.forecast_date === dateStr);
   };
 
-  // Load forecasts
-  const loadForecasts = async () => {
-    if (!user) return;
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
 
-    let query = supabase.from('forecasts').select('*');
-
-    if (!isAdmin) {
-      query = query.eq('user_id', user.id);
-    } else if (selectedUserId) {
-      query = query.eq('user_id', selectedUserId);
-    }
-
-    const { data, error } = await query.order('start_date', { ascending: true });
-
-    if (error) {
-      console.error('Error loading forecasts:', error);
-    } else {
-      setForecasts(data || []);
-      console.log('Loaded forecasts:', data);
-    }
-  };
-
-  // Add new forecast
-  const handleAddForecast = async () => {
-    if (!user) return;
-
-    const title = prompt('Enter forecast title');
-    if (!title) return;
-
-    const userIdToUse = isAdmin && selectedUserId ? selectedUserId : user.id;
-
-    const { data, error } = await supabase.from('forecasts').insert({
-      user_id: userIdToUse,
-      title,
-      start_date: new Date().toISOString(),
-    });
-
-    if (error) {
-      console.error('Error adding forecast:', error);
-    } else {
-      loadForecasts();
-    }
-  };
-
-  // Map forecasts to events for react-big-calendar
-  const events = forecasts.map(f => ({
-    id: f.id,
-    title: f.title,
-    start: new Date(f.start_date),
-    end: f.end_date ? new Date(f.end_date) : new Date(f.start_date),
-  }));
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="p-4">
-      {/* Admin: user selector */}
-      {isAdmin && (
-        <div className="mb-4">
-          <label className="mr-2 font-medium">Select User:</label>
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="border px-2 py-1 rounded"
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700">
+        <button
+          onClick={onPrevMonth}
+          className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5 text-white" />
+        </button>
+        <h2 className="text-xl font-semibold text-white">
+          {monthNames[month]} {year}
+        </h2>
+        <button
+          onClick={onNextMonth}
+          className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+        >
+          <ChevronRight className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-px bg-gray-200">
+        {dayNames.map(day => (
+          <div
+            key={day}
+            className="bg-gray-50 px-2 py-3 text-center text-sm font-semibold text-gray-700"
           >
-            <option value="">All Users</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.username || '(no username)'}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+            {day}
+          </div>
+        ))}
 
-      {/* Add forecast button */}
-      <button
-        onClick={handleAddForecast}
-        className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        Add Forecast
-      </button>
+        {days.map((day, index) => {
+          const isCurrentMonth = day.getMonth() === month;
+          const isToday = day.toDateString() === new Date().toDateString();
+          const dayForecasts = getForecastsForDate(day);
 
-      {/* Debugging: show raw forecasts */}
-      <pre className="mb-4 text-sm text-gray-700">{JSON.stringify(forecasts, null, 2)}</pre>
-
-      {/* Calendar */}
-      <Calendar
-        localizer={localizer}
-        events={events}
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: 500 }}
-      />
+          return (
+            <div
+              key={index}
+              onClick={() => isCurrentMonth && onDateClick(day)}
+              className={`
+                bg-white min-h-[100px] p-2 cursor-pointer transition-all hover:shadow-md
+                ${!isCurrentMonth ? 'opacity-40' : ''}
+                ${isToday ? 'ring-2 ring-blue-500' : ''}
+              `}
+            >
+              <div className={`
+                text-sm font-medium mb-1
+                ${isToday ? 'text-blue-600 font-bold' : 'text-gray-700'}
+              `}>
+                {day.getDate()}
+              </div>
+              <div className="space-y-1">
+                {dayForecasts.map(forecast => (
+                  <div
+                    key={forecast.id}
+                    className="text-xs p-1 bg-blue-100 text-blue-800 rounded truncate hover:bg-blue-200 transition-colors"
+                    title={`${forecast.title}${isAdmin && forecast.user_email ? ` (${forecast.user_email})` : ''}`}
+                  >
+                    {forecast.title}
+                    {isAdmin && forecast.user_email && (
+                      <span className="block text-[10px] text-blue-600 truncate">
+                        {forecast.user_email}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
