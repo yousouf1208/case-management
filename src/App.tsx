@@ -9,6 +9,7 @@ function App() {
   const { user, profile, loading } = useAuth();
   const [showLogin, setShowLogin] = useState(true);
 
+  // 🔄 Loading Screen
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center">
@@ -20,7 +21,8 @@ function App() {
     );
   }
 
-  if (!user || !profile) {
+  // 🔐 Not Logged In
+  if (!user) {
     return showLogin ? (
       <Login onToggleForm={() => setShowLogin(false)} />
     ) : (
@@ -28,7 +30,19 @@ function App() {
     );
   }
 
-  return profile.role === 'admin' ? <AdminDashboard /> : <UserDashboard />;
+  // ⚠️ Logged in but profile not ready
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-slate-600">Setting up your profile...</p>
+      </div>
+    );
+  }
+
+  // 🎯 Role-Based Routing
+  return profile.role === 'admin'
+    ? <AdminDashboard />
+    : <UserDashboard />;
 }
 
 export default App;

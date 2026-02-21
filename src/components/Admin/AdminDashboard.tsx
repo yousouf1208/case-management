@@ -5,7 +5,15 @@ import { UserRecords } from './UserRecords';
 import { AllRecords } from './AllRecords';
 import { FieldManagement } from './FieldManagement';
 import { AdminManagement } from './AdminManagement';
-import { LogOut, Users, Database, Settings, Shield } from 'lucide-react';
+import AdminForecast from './AdminForecast';
+import {
+  LogOut,
+  Users,
+  Database,
+  Settings,
+  Shield,
+  Calendar
+} from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -14,10 +22,16 @@ interface Profile {
   role: string;
 }
 
-type View = 'users' | 'all-records' | 'fields' | 'admin-management';
+type View =
+  | 'users'
+  | 'all-records'
+  | 'fields'
+  | 'admin-management'
+  | 'forecast';
 
 export function AdminDashboard() {
   const { profile, signOut } = useAuth();
+
   const [users, setUsers] = useState<Profile[]>([]);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [currentView, setCurrentView] = useState<View>('users');
@@ -33,9 +47,10 @@ export function AdminDashboard() {
         .from('profiles')
         .select('*')
         .eq('role', 'user')
-        .order('username');
+        .order('username', { ascending: true });
 
       if (error) throw error;
+
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -55,26 +70,34 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* HEADER */}
       <header className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">Admin Dashboard</h1>
-              <p className="text-sm text-slate-600">Welcome, {profile?.username}</p>
-            </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <LogOut size={20} />
-              Sign Out
-            </button>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">
+              Admin Dashboard
+            </h1>
+            <p className="text-sm text-slate-600">
+              Welcome, {profile?.username}
+            </p>
           </div>
+
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <LogOut size={20} />
+            Sign Out
+          </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      {/* MAIN */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+
+        {/* NAVIGATION BUTTONS */}
         <div className="mb-6 flex gap-4 flex-wrap">
+
           <button
             onClick={() => {
               setCurrentView('users');
@@ -89,6 +112,7 @@ export function AdminDashboard() {
             <Users size={20} />
             Users
           </button>
+
           <button
             onClick={() => {
               setCurrentView('all-records');
@@ -103,6 +127,7 @@ export function AdminDashboard() {
             <Database size={20} />
             All Records
           </button>
+
           <button
             onClick={() => {
               setCurrentView('fields');
@@ -117,6 +142,7 @@ export function AdminDashboard() {
             <Settings size={20} />
             Manage Fields
           </button>
+
           <button
             onClick={() => {
               setCurrentView('admin-management');
@@ -131,8 +157,26 @@ export function AdminDashboard() {
             <Shield size={20} />
             Admin Management
           </button>
+
+          {/* NEW FORECAST TAB */}
+          <button
+            onClick={() => {
+              setCurrentView('forecast');
+              setSelectedUser(null);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              currentView === 'forecast'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Calendar size={20} />
+            Forecast Calendar
+          </button>
+
         </div>
 
+        {/* CONTENT AREA */}
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -142,8 +186,11 @@ export function AdminDashboard() {
             {currentView === 'users' && !selectedUser && (
               <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200">
-                  <h2 className="text-lg font-semibold text-slate-800">Office Users</h2>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    Office Users
+                  </h2>
                 </div>
+
                 <div className="divide-y divide-slate-200">
                   {users.map((user) => (
                     <button
@@ -153,10 +200,16 @@ export function AdminDashboard() {
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-medium text-slate-800">{user.username}</p>
-                          <p className="text-sm text-slate-600">{user.email}</p>
+                          <p className="font-medium text-slate-800">
+                            {user.username}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            {user.email}
+                          </p>
                         </div>
-                        <div className="text-blue-600">View Records →</div>
+                        <div className="text-blue-600">
+                          View Records →
+                        </div>
                       </div>
                     </button>
                   ))}
@@ -173,6 +226,8 @@ export function AdminDashboard() {
             {currentView === 'fields' && <FieldManagement />}
 
             {currentView === 'admin-management' && <AdminManagement />}
+
+            {currentView === 'forecast' && <AdminForecast />}
           </>
         )}
       </div>

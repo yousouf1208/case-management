@@ -1,4 +1,3 @@
-import Calendar from './Calendar';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -6,20 +5,9 @@ import { RecordForm } from './RecordForm';
 import { RecordsList } from './RecordsList';
 import { RecordUpdateNotification } from '../Notifications/RecordUpdateNotification';
 import { importRecordsFromExcel } from '../../lib/excelUtils';
-import { LogOut, Plus, Upload } from 'lucide-react';
-
-interface Record {
-  id: string;
-  record_number: number;
-  category: string;
-  created_at: string;
-  custom_field_values?: Record<string, string>;
-}
-
-interface CustomField {
-  id: string;
-  field_name: string;
-}
+import { LogOut, Plus, Upload, Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
+import Calendar from './Calendar';
+import ForecastModal from './ForecastModal';
 
 interface Forecast {
   id: string;
@@ -33,297 +21,123 @@ interface Forecast {
 export function UserDashboard() {
   const { profile, signOut } = useAuth();
 
-  // --- Records state ---
-  const [records, setRecords] = useState<Record[]>([]);
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<Record | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [view, setView] = useState<'records' | 'forecast'>('records');
 
-  // --- Forecast state ---
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [users, setUsers] = useState<{ id: string; email: string }[]>([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Load records & custom fields
   useEffect(() => {
-    if (profile?.id) {
-      loadRecords();
-      loadCustomFields();
-      loadUsers();
-      loadForecasts();
-    }
-  }, [profile?.id, selectedUserId]);
-
-  // --- RECORDS FUNCTIONS ---
-  const loadRecords = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('records')
-        .select(`
-          *,
-          custom_field_values (
-            field_id,
-            value
-          )
-        `)
-        .eq('user_id', profile?.id)
-        .order('record_number', { ascending: false });
-
-      if (error) throw error;
-
-      const recordsWithValues = (data || []).map(record => ({
-        ...record,
-        custom_field_values: record.custom_field_values.reduce((acc: Record<string, string>, item: any) => {
-          acc[item.field_id] = item.value || '';
-          return acc;
-        }, {}),
-      }));
-
-      setRecords(recordsWithValues);
-    } catch (error) {
-      console.error('Error loading records:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCustomFields = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('custom_fields')
-        .select('id, field_name')
-        .order('position', { ascending: true });
-
-      if (error) throw error;
-      setCustomFields(data || []);
-    } catch (error) {
-      console.error('Error loading custom fields:', error);
-    }
-  };
-
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !profile?.id) return;
-
-    setImporting(true);
-    setImportResult(null);
-
-    try {
-      const result = await importRecordsFromExcel(file, profile.id, customFields);
-      setImportResult(result);
-      await loadRecords();
-    } catch (error) {
-      setImportResult({
-        success: 0,
-        failed: 1,
-        errors: [(error as Error).message],
-      });
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleEdit = (record: Record) => {
-    setEditingRecord(record);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this record?')) return;
-
-    try {
-      const { error } = await supabase.from('records').delete().eq('id', id);
-      if (error) throw error;
-      await loadRecords();
-    } catch (error) {
-      console.error('Error deleting record:', error);
-    }
-  };
-
-  const handleFormClose = () => {
-    setShowForm(false);
-    setEditingRecord(null);
-    loadRecords();
-  };
-
-  // --- FORECAST FUNCTIONS ---
-  const loadUsers = async () => {
-    if (!profile?.is_admin) return;
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('id, email')
-      .order('email', { ascending: true });
-
-    if (error) console.error('Error loading users:', error);
-    else setUsers(data || []);
-  };
+    if (profile?.id) loadForecasts();
+  }, [profile?.id]);
 
   const loadForecasts = async () => {
-    if (!profile?.id) return;
+    const { data, error } = await supabase
+      .from('forecasts')
+      .select('*')
+      .eq('user_id', profile?.id)
+      .order('forecast_date');
 
-    let query = supabase.from('forecasts').select('*');
-
-    if (!profile?.is_admin) {
-      query = query.eq('user_id', profile.id);
-    } else if (selectedUserId) {
-      query = query.eq('user_id', selectedUserId);
-    }
-
-    const { data, error } = await query.order('forecast_date', { ascending: true });
-
-    if (error) console.error('Error loading forecasts:', error);
-    else setForecasts(data || []);
+    if (!error) setForecasts(data || []);
   };
 
-  const handleAddForecast = async () => {
-    const title = prompt('Enter forecast title');
-    if (!title || !profile?.id) return;
+  const handleDateClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const existing = forecasts.find(f => f.forecast_date === dateStr);
 
-    const userIdToUse = profile.is_admin && selectedUserId ? selectedUserId : profile.id;
+    setSelectedDate(date);
+    setSelectedForecast(existing || null);
+    setIsModalOpen(true);
+  };
 
-    const { error } = await supabase.from('forecasts').insert({
-      user_id: userIdToUse,
-      title,
-      description: '',
-      forecast_date: new Date().toISOString().split('T')[0],
-    });
+  const handleSaveForecast = async (forecast: any) => {
+    if (forecast.id) {
+      await supabase.from('forecasts').update(forecast).eq('id', forecast.id);
+    } else {
+      await supabase.from('forecasts').insert({
+        ...forecast,
+        user_id: profile?.id,
+      });
+    }
+    await loadForecasts();
+  };
 
-    if (error) console.error('Error adding forecast:', error);
-    else loadForecasts();
+  const handleDeleteForecast = async (id: string) => {
+    await supabase.from('forecasts').delete().eq('id', id);
+    await loadForecasts();
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {profile?.last_login && (
-        <RecordUpdateNotification userId={profile.id} lastLogin={profile.last_login} />
-      )}
-
       <header className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-              <p className="text-sm text-slate-600">Welcome, {profile?.username}</p>
-            </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <LogOut size={20} />
-              Sign Out
-            </button>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p>Welcome, {profile?.username}</p>
           </div>
+          <button onClick={signOut} className="flex gap-2 items-center">
+            <LogOut size={18}/> Sign Out
+          </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* --- RECORDS SECTION --- */}
-        <div className="mb-8">
-          <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-slate-800">My Records</h2>
-            <div className="flex gap-3">
+      <main className="max-w-7xl mx-auto px-4 py-8">
+
+        {view === 'records' && (
+          <>
+            <div className="flex justify-between mb-6">
+              <h2 className="text-xl font-semibold">My Records</h2>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-400"
+                onClick={() => setView('forecast')}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded"
               >
-                <Upload size={20} />
-                {importing ? 'Importing...' : 'Import Excel'}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImport}
-                className="hidden"
-              />
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={20} />
-                Add Record
+                <CalendarIcon size={18}/>
+                Forecast Calendar
               </button>
             </div>
-          </div>
 
-          {importResult && (
-            <div className={`mb-6 p-4 rounded-lg border ${
-              importResult.failed === 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <p className={`font-semibold ${
-                importResult.failed === 0 ? 'text-green-700' : 'text-yellow-700'
-              }`}>
-                Import Complete: {importResult.success} successful, {importResult.failed} failed
-              </p>
-              {importResult.errors.length > 0 && (
-                <div className="mt-2 text-sm text-red-700">
-                  {importResult.errors.slice(0, 5).map((error, idx) => (
-                    <p key={idx}>{error}</p>
-                  ))}
-                  {importResult.errors.length > 5 && (
-                    <p>...and {importResult.errors.length - 5} more errors</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            <RecordsList records={[]} onEdit={() => {}} onDelete={() => {}} />
+          </>
+        )}
 
-          {showForm && (
-            <RecordForm record={editingRecord} onClose={handleFormClose} />
-          )}
-
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : (
-            <RecordsList records={records} onEdit={handleEdit} onDelete={handleDelete} />
-          )}
-        </div>
-
-        {/* --- FORECAST CALENDAR SECTION --- */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-slate-800">Forecast Calendar</h2>
-            <button
-              onClick={handleAddForecast}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Add Forecast
-            </button>
-          </div>
-
-          {profile?.is_admin && users.length > 0 && (
-            <div className="mb-4">
-              <label className="mr-2 font-medium">Select User:</label>
-              <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                className="border px-2 py-1 rounded"
+        {view === 'forecast' && (
+          <>
+            <div className="flex justify-between mb-6">
+              <button
+                onClick={() => setView('records')}
+                className="flex items-center gap-2 text-blue-600"
               >
-                <option value="">All Users</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.email}</option>
-                ))}
-              </select>
+                <ArrowLeft size={18}/>
+                Back to Dashboard
+              </button>
+              <h2 className="text-xl font-semibold">My Forecast Calendar</h2>
             </div>
-          )}
 
-          <Calendar
-            currentDate={new Date()}
-            forecasts={forecasts}
-            onDateClick={() => {}}
-            onPrevMonth={() => {}}
-            onNextMonth={() => {}}
-            isAdmin={profile?.is_admin || false}
-          />
-        </div>
+            <Calendar
+              currentDate={currentDate}
+              forecasts={forecasts}
+              onDateClick={handleDateClick}
+              onPrevMonth={() =>
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
+              }
+              onNextMonth={() =>
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
+              }
+              isAdmin={false}
+            />
+
+            <ForecastModal
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              onSave={handleSaveForecast}
+              onDelete={handleDeleteForecast}
+              selectedDate={selectedDate}
+              existingForecast={selectedForecast}
+            />
+          </>
+        )}
       </main>
     </div>
   );
