@@ -1,3 +1,4 @@
+import Calendar from './Calendar';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -20,8 +21,19 @@ interface CustomField {
   field_name: string;
 }
 
+interface Forecast {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  forecast_date: string;
+  user_email?: string;
+}
+
 export function UserDashboard() {
   const { profile, signOut } = useAuth();
+
+  // --- Records state ---
   const [records, setRecords] = useState<Record[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -31,13 +43,22 @@ export function UserDashboard() {
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Forecast state ---
+  const [forecasts, setForecasts] = useState<Forecast[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [users, setUsers] = useState<{ id: string; email: string }[]>([]);
+
+  // Load records & custom fields
   useEffect(() => {
     if (profile?.id) {
       loadRecords();
       loadCustomFields();
+      loadUsers();
+      loadForecasts();
     }
-  }, [profile?.id]);
+  }, [profile?.id, selectedUserId]);
 
+  // --- RECORDS FUNCTIONS ---
   const loadRecords = async () => {
     try {
       const { data, error } = await supabase
@@ -103,9 +124,7 @@ export function UserDashboard() {
       });
     } finally {
       setImporting(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -119,7 +138,6 @@ export function UserDashboard() {
 
     try {
       const { error } = await supabase.from('records').delete().eq('id', id);
-
       if (error) throw error;
       await loadRecords();
     } catch (error) {
@@ -133,6 +151,52 @@ export function UserDashboard() {
     loadRecords();
   };
 
+  // --- FORECAST FUNCTIONS ---
+  const loadUsers = async () => {
+    if (!profile?.is_admin) return;
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('id, email')
+      .order('email', { ascending: true });
+
+    if (error) console.error('Error loading users:', error);
+    else setUsers(data || []);
+  };
+
+  const loadForecasts = async () => {
+    if (!profile?.id) return;
+
+    let query = supabase.from('forecasts').select('*');
+
+    if (!profile?.is_admin) {
+      query = query.eq('user_id', profile.id);
+    } else if (selectedUserId) {
+      query = query.eq('user_id', selectedUserId);
+    }
+
+    const { data, error } = await query.order('forecast_date', { ascending: true });
+
+    if (error) console.error('Error loading forecasts:', error);
+    else setForecasts(data || []);
+  };
+
+  const handleAddForecast = async () => {
+    const title = prompt('Enter forecast title');
+    if (!title || !profile?.id) return;
+
+    const userIdToUse = profile.is_admin && selectedUserId ? selectedUserId : profile.id;
+
+    const { error } = await supabase.from('forecasts').insert({
+      user_id: userIdToUse,
+      title,
+      description: '',
+      forecast_date: new Date().toISOString().split('T')[0],
+    });
+
+    if (error) console.error('Error adding forecast:', error);
+    else loadForecasts();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {profile?.last_login && (
@@ -143,7 +207,7 @@ export function UserDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Office Records</h1>
+              <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
               <p className="text-sm text-slate-600">Welcome, {profile?.username}</p>
             </div>
             <button
@@ -158,76 +222,108 @@ export function UserDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-slate-800">My Records</h2>
-          <div className="flex gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-400"
-            >
-              <Upload size={20} />
-              {importing ? 'Importing...' : 'Import Excel'}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleImport}
-              className="hidden"
-            />
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={20} />
-              Add Record
-            </button>
+        {/* --- RECORDS SECTION --- */}
+        <div className="mb-8">
+          <div className="mb-6 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-slate-800">My Records</h2>
+            <div className="flex gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-400"
+              >
+                <Upload size={20} />
+                {importing ? 'Importing...' : 'Import Excel'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus size={20} />
+                Add Record
+              </button>
+            </div>
           </div>
+
+          {importResult && (
+            <div className={`mb-6 p-4 rounded-lg border ${
+              importResult.failed === 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <p className={`font-semibold ${
+                importResult.failed === 0 ? 'text-green-700' : 'text-yellow-700'
+              }`}>
+                Import Complete: {importResult.success} successful, {importResult.failed} failed
+              </p>
+              {importResult.errors.length > 0 && (
+                <div className="mt-2 text-sm text-red-700">
+                  {importResult.errors.slice(0, 5).map((error, idx) => (
+                    <p key={idx}>{error}</p>
+                  ))}
+                  {importResult.errors.length > 5 && (
+                    <p>...and {importResult.errors.length - 5} more errors</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {showForm && (
+            <RecordForm record={editingRecord} onClose={handleFormClose} />
+          )}
+
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <RecordsList records={records} onEdit={handleEdit} onDelete={handleDelete} />
+          )}
         </div>
 
-        {importResult && (
-          <div className={`mb-6 p-4 rounded-lg border ${
-            importResult.failed === 0
-              ? 'bg-green-50 border-green-200'
-              : 'bg-yellow-50 border-yellow-200'
-          }`}>
-            <p className={`font-semibold ${
-              importResult.failed === 0 ? 'text-green-700' : 'text-yellow-700'
-            }`}>
-              Import Complete: {importResult.success} successful, {importResult.failed} failed
-            </p>
-            {importResult.errors.length > 0 && (
-              <div className="mt-2 text-sm text-red-700">
-                {importResult.errors.slice(0, 5).map((error, idx) => (
-                  <p key={idx}>{error}</p>
+        {/* --- FORECAST CALENDAR SECTION --- */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-slate-800">Forecast Calendar</h2>
+            <button
+              onClick={handleAddForecast}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Add Forecast
+            </button>
+          </div>
+
+          {profile?.is_admin && users.length > 0 && (
+            <div className="mb-4">
+              <label className="mr-2 font-medium">Select User:</label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="border px-2 py-1 rounded"
+              >
+                <option value="">All Users</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.email}</option>
                 ))}
-                {importResult.errors.length > 5 && (
-                  <p>...and {importResult.errors.length - 5} more errors</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+              </select>
+            </div>
+          )}
 
-        {showForm && (
-          <RecordForm
-            record={editingRecord}
-            onClose={handleFormClose}
+          <Calendar
+            currentDate={new Date()}
+            forecasts={forecasts}
+            onDateClick={() => {}}
+            onPrevMonth={() => {}}
+            onNextMonth={() => {}}
+            isAdmin={profile?.is_admin || false}
           />
-        )}
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <RecordsList
-            records={records}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        )}
+        </div>
       </main>
     </div>
   );
