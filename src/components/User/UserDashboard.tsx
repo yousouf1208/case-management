@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { RecordForm } from './RecordForm';
 import { RecordsList } from './RecordsList';
-import { RecordUpdateNotification } from '../Notifications/RecordUpdateNotification';
 import { importRecordsFromExcel } from '../../lib/excelUtils';
 import { LogOut, Plus, Upload, Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import Calendar from './Calendar';
@@ -22,6 +21,7 @@ export function UserDashboard() {
   const { profile, signOut } = useAuth();
 
   const [view, setView] = useState<'records' | 'forecast'>('records');
+  const [showRecordForm, setShowRecordForm] = useState(false);
 
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -29,8 +29,12 @@ export function UserDashboard() {
   const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [records, setRecords] = useState<any[]>([]); // Load real records from supabase if needed
+
+  // Load forecasts for user
   useEffect(() => {
     if (profile?.id) loadForecasts();
+    if (profile?.id) loadRecords();
   }, [profile?.id]);
 
   const loadForecasts = async () => {
@@ -41,6 +45,16 @@ export function UserDashboard() {
       .order('forecast_date');
 
     if (!error) setForecasts(data || []);
+  };
+
+  const loadRecords = async () => {
+    const { data, error } = await supabase
+      .from('records')
+      .select('*')
+      .eq('user_id', profile?.id)
+      .order('created_at', { ascending: false });
+
+    if (!error) setRecords(data || []);
   };
 
   const handleDateClick = (date: Date) => {
@@ -71,6 +85,7 @@ export function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between">
           <div>
@@ -83,22 +98,51 @@ export function UserDashboard() {
         </div>
       </header>
 
+      {/* Main */}
       <main className="max-w-7xl mx-auto px-4 py-8">
 
         {view === 'records' && (
           <>
+            {/* Action Buttons */}
             <div className="flex justify-between mb-6">
               <h2 className="text-xl font-semibold">My Records</h2>
-              <button
-                onClick={() => setView('forecast')}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                <CalendarIcon size={18}/>
-                Forecast Calendar
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowRecordForm(true)}
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded"
+                >
+                  <Plus size={18}/> Add Record
+                </button>
+
+                <button
+                  onClick={() => importRecordsFromExcel(profile?.id)}
+                  className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded"
+                >
+                  <Upload size={18}/> Import
+                </button>
+
+                <button
+                  onClick={() => setView('forecast')}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  <CalendarIcon size={18}/> Forecast Calendar
+                </button>
+              </div>
             </div>
 
-            <RecordsList records={[]} onEdit={() => {}} onDelete={() => {}} />
+            {/* Add Record Form */}
+            {showRecordForm && (
+              <RecordForm
+                onClose={() => setShowRecordForm(false)}
+                onSave={() => {
+                  setShowRecordForm(false);
+                  loadRecords();
+                }}
+              />
+            )}
+
+            {/* Records List */}
+            <RecordsList records={records} onEdit={() => {}} onDelete={() => {}} />
           </>
         )}
 
@@ -109,8 +153,7 @@ export function UserDashboard() {
                 onClick={() => setView('records')}
                 className="flex items-center gap-2 text-blue-600"
               >
-                <ArrowLeft size={18}/>
-                Back to Dashboard
+                <ArrowLeft size={18}/> Back to Dashboard
               </button>
               <h2 className="text-xl font-semibold">My Forecast Calendar</h2>
             </div>

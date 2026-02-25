@@ -33,7 +33,6 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
   const [error, setError] = useState('');
 
   /* ---------------- LOAD DATA ---------------- */
-
   useEffect(() => {
     loadCustomFields();
     if (isAdmin) loadUsers();
@@ -47,9 +46,7 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
   }, [record]);
 
   useEffect(() => {
-    if (customFields.length > 0) {
-      initializeValues();
-    }
+    if (customFields.length > 0) initializeValues();
   }, [customFields, record]);
 
   const loadCustomFields = async () => {
@@ -61,35 +58,26 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
     if (!error) setCustomFields(data || []);
   };
 
- const loadUsers = async () => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username, role')          // Include the role column
-    .in('role', ['user', 'admin'])        // Fetch both users and admins
-    .order('username', { ascending: true });
+  const loadUsers = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, role')
+      .in('role', ['user', 'admin'])
+      .order('username', { ascending: true });
 
-  if (error) {
-    console.error('Error loading users:', error);
-  } else {
-    setUsers(data || []);
-  }
-};
+    if (!error) setUsers(data || []);
+  };
 
-
-  const initializeValues = async () => {
+  const initializeValues = () => {
     const initial: Record<string, string> = {};
     customFields.forEach(field => {
       initial[field.id] = '';
     });
 
-    if (record) {
-      const { data } = await supabase
-        .from('custom_field_values')
-        .select('field_id, value')
-        .eq('record_id', record.id);
-
-      data?.forEach(item => {
-        initial[item.field_id] = item.value || '';
+    // If editing a record, load existing values
+    if (record?.custom_field_values) {
+      Object.entries(record.custom_field_values).forEach(([key, value]) => {
+        initial[key] = value as string;
       });
     }
 
@@ -97,7 +85,6 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
   };
 
   /* ---------------- SUBMIT ---------------- */
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -106,24 +93,15 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
     try {
       let recordId = record?.id;
 
-      /* -------- UPDATE -------- */
       if (record) {
-        const updateData: any = { category };
+        // -------- UPDATE EXISTING RECORD --------
+        const updateData: any = {
+          category,
+          custom_field_values: customValues, // ⚡ store values in JSON object
+        };
 
         if (isAdmin && selectedUserId !== record.user_id) {
           updateData.user_id = selectedUserId;
-
-          const { data: lastRecord } = await supabase
-            .from('records')
-            .select('record_number')
-            .eq('user_id', selectedUserId)
-            .order('record_number', { ascending: false })
-            .limit(1)
-            .single();
-
-          updateData.record_number = lastRecord
-            ? lastRecord.record_number + 1
-            : 1;
         }
 
         const { error } = await supabase
@@ -132,15 +110,14 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
           .eq('id', record.id);
 
         if (error) throw error;
-      }
-
-      /* -------- CREATE -------- */
-      else {
+      } else {
+        // -------- CREATE NEW RECORD --------
         const { data, error } = await supabase
           .from('records')
           .insert({
             user_id: selectedUserId || effectiveUserId!,
-            category
+            category,
+            custom_field_values: customValues, // ⚡ store values in JSON object
           })
           .select()
           .single();
@@ -148,28 +125,6 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
         if (error) throw error;
 
         recordId = data.id;
-      }
-
-      /* -------- UPSERT CUSTOM VALUES -------- */
-
-      if (recordId) {
-        const payload = Object.entries(customValues).map(
-          ([fieldId, value]) => ({
-            record_id: recordId,
-            field_id: fieldId,
-            value: value || null,
-          })
-        );
-
-        if (payload.length > 0) {
-          const { error } = await supabase
-            .from('custom_field_values')
-            .upsert(payload, {
-              onConflict: 'record_id,field_id',
-            });
-
-          if (error) throw error;
-        }
       }
 
       onClose();
@@ -181,7 +136,6 @@ export function RecordForm({ record, onClose, isAdmin = false, userId }: RecordF
   };
 
   /* ---------------- UI ---------------- */
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">

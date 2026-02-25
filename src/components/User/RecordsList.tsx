@@ -7,7 +7,7 @@ interface Record {
   id: string;
   record_number: number;
   category: string;
-  created_at: string;
+  user_id: string;
   custom_field_values?: Record<string, string>;
 }
 
@@ -32,34 +32,30 @@ export function RecordsList({ records, onEdit, onDelete }: RecordsListProps) {
   }, []);
 
   const loadCustomFields = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('custom_fields')
-        .select('*')
-        .order('position', { ascending: true });
+    const { data, error } = await supabase
+      .from('custom_fields')
+      .select('*')
+      .order('position', { ascending: true });
 
-      if (error) throw error;
-      setCustomFields(data || []);
-    } catch (error) {
+    if (error) {
       console.error('Error loading custom fields:', error);
+      return;
     }
+
+    setCustomFields(data || []);
   };
 
   const handleExport = async () => {
-    try {
-      const exportData = records.map(record => ({
-        'Record #': record.record_number,
-        ...Object.fromEntries(
-          customFields.map(field => [field.field_name, record.custom_field_values?.[field.id] || ''])
-        ),
-      }));
-
-      const timestamp = new Date().toISOString().split('T')[0];
-      await exportRecordsToExcel(exportData, `records_${timestamp}.xlsx`);
-    } catch (error) {
-      console.error('Export failed:', error);
-    }
+    const exportData = records.map(record => ({
+      'Record #': record.record_number,
+      ...Object.fromEntries(
+        customFields.map(field => [field.field_name, record.custom_field_values?.[field.id] || ''])
+      ),
+    }));
+    const timestamp = new Date().toISOString().split('T')[0];
+    await exportRecordsToExcel(exportData, `records_${timestamp}.xlsx`);
   };
+
   if (records.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-12 text-center">
@@ -80,7 +76,7 @@ export function RecordsList({ records, onEdit, onDelete }: RecordsListProps) {
         </button>
       </div>
 
-      {['CASE OB', 'PHQ'].map((categoryName) => {
+      {['CASE OB', 'PHQ'].map(categoryName => {
         const categoryRecords = records.filter(r => r.category === categoryName);
         if (categoryRecords.length === 0) return null;
 
@@ -97,7 +93,7 @@ export function RecordsList({ records, onEdit, onDelete }: RecordsListProps) {
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Record #
                       </th>
-                      {customFields.map((field) => (
+                      {customFields.map(field => (
                         <th key={field.id} className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                           {field.field_name}
                         </th>
@@ -108,12 +104,12 @@ export function RecordsList({ records, onEdit, onDelete }: RecordsListProps) {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {categoryRecords.map((record) => (
+                    {categoryRecords.map(record => (
                       <tr key={record.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                           {record.record_number}
                         </td>
-                        {customFields.map((field) => (
+                        {customFields.map(field => (
                           <td key={field.id} className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                             {record.custom_field_values?.[field.id] || '-'}
                           </td>
