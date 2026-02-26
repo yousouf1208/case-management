@@ -44,19 +44,16 @@ export default function ForecastModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const forecastData = {
+      await onSave({
         title,
         description,
         forecast_date: selectedDate.toISOString().split('T')[0],
         ...(existingForecast && { id: existingForecast.id }),
-      };
-
-      await onSave(forecastData);
+      });
       onClose();
-    } catch (error) {
-      console.error('Error saving forecast:', error);
+    } catch (err) {
+      console.error(err);
       alert('Failed to save forecast');
     } finally {
       setLoading(false);
@@ -65,14 +62,13 @@ export default function ForecastModal({
 
   const handleDelete = async () => {
     if (!existingForecast || !onDelete) return;
-
     if (confirm('Are you sure you want to delete this forecast?')) {
       setLoading(true);
       try {
         await onDelete(existingForecast.id);
         onClose();
-      } catch (error) {
-        console.error('Error deleting forecast:', error);
+      } catch (err) {
+        console.error(err);
         alert('Failed to delete forecast');
       } finally {
         setLoading(false);
@@ -87,79 +83,44 @@ export default function ForecastModal({
           <h3 className="text-xl font-semibold text-gray-800">
             {existingForecast ? 'Edit Forecast' : 'Add Forecast'}
           </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date
-            </label>
-            <input
-              type="text"
-              value={selectedDate.toLocaleDateString()}
-              disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+            <input type="text" value={selectedDate.toLocaleDateString()} disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title *
-            </label>
-            <input
-              type="text"
-              value={title}
+            <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
+            <input type="text" value={title} required
               onChange={(e) => setTitle(e.target.value)}
-              required
-              placeholder="Enter forecast title"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              value={description}
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <textarea value={description} rows={4} placeholder="Enter description"
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter forecast description"
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
           </div>
 
           <div className="flex gap-3 pt-4">
             {existingForecast && onDelete && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
+              <button type="button" onClick={handleDelete} disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                <Trash2 className="w-4 h-4" /> Delete
               </button>
             )}
             <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Saving...' : 'Save'}
             </button>
           </div>

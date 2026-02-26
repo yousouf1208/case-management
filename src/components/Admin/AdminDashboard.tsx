@@ -31,7 +31,6 @@ type View =
 
 export function AdminDashboard() {
   const { profile, signOut } = useAuth();
-
   const [users, setUsers] = useState<Profile[]>([]);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [currentView, setCurrentView] = useState<View>('users');
@@ -50,7 +49,6 @@ export function AdminDashboard() {
         .order('username', { ascending: true });
 
       if (error) throw error;
-
       setUsers(data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -81,7 +79,6 @@ export function AdminDashboard() {
               Welcome, {profile?.username}
             </p>
           </div>
-
           <button
             onClick={signOut}
             className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
@@ -92,21 +89,13 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      {/* MAIN */}
+      {/* NAVIGATION */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-
-        {/* NAVIGATION BUTTONS */}
         <div className="mb-6 flex gap-4 flex-wrap">
-
           <button
-            onClick={() => {
-              setCurrentView('users');
-              setSelectedUser(null);
-            }}
+            onClick={() => { setCurrentView('users'); setSelectedUser(null); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'users'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              currentView === 'users' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Users size={20} />
@@ -114,14 +103,9 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => {
-              setCurrentView('all-records');
-              setSelectedUser(null);
-            }}
+            onClick={() => { setCurrentView('all-records'); setSelectedUser(null); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'all-records'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              currentView === 'all-records' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Database size={20} />
@@ -129,14 +113,9 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => {
-              setCurrentView('fields');
-              setSelectedUser(null);
-            }}
+            onClick={() => { setCurrentView('fields'); setSelectedUser(null); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'fields'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              currentView === 'fields' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Settings size={20} />
@@ -144,39 +123,27 @@ export function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => {
-              setCurrentView('admin-management');
-              setSelectedUser(null);
-            }}
+            onClick={() => { setCurrentView('admin-management'); setSelectedUser(null); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'admin-management'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              currentView === 'admin-management' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Shield size={20} />
             Admin Management
           </button>
 
-          {/* NEW FORECAST TAB */}
           <button
-            onClick={() => {
-              setCurrentView('forecast');
-              setSelectedUser(null);
-            }}
+            onClick={() => { setCurrentView('forecast'); setSelectedUser(null); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'forecast'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              currentView === 'forecast' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
             <Calendar size={20} />
             Forecast Calendar
           </button>
-
         </div>
 
-        {/* CONTENT AREA */}
+        {/* CONTENT */}
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -190,7 +157,6 @@ export function AdminDashboard() {
                     Office Users
                   </h2>
                 </div>
-
                 <div className="divide-y divide-slate-200">
                   {users.map((user) => (
                     <button
@@ -200,16 +166,10 @@ export function AdminDashboard() {
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-medium text-slate-800">
-                            {user.username}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            {user.email}
-                          </p>
+                          <p className="font-medium text-slate-800">{user.username}</p>
+                          <p className="text-sm text-slate-600">{user.email}</p>
                         </div>
-                        <div className="text-blue-600">
-                          View Records →
-                        </div>
+                        <div className="text-blue-600">View Records →</div>
                       </div>
                     </button>
                   ))}
@@ -222,9 +182,7 @@ export function AdminDashboard() {
             )}
 
             {currentView === 'all-records' && <AllRecords />}
-
             {currentView === 'fields' && <FieldManagement />}
-
             {currentView === 'admin-management' && <AdminManagement />}
 
             {currentView === 'forecast' && <AdminForecast />}

@@ -19,50 +19,48 @@ interface Forecast {
 
 export function UserDashboard() {
   const { profile, signOut } = useAuth();
-
   const isAdmin = profile?.is_admin === true;
 
   const [view, setView] = useState<'records' | 'forecast'>('records');
   const [showRecordForm, setShowRecordForm] = useState(false);
 
+  const [records, setRecords] = useState<any[]>([]);
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [records, setRecords] = useState<any[]>([]);
-
+  /* ---------------- LOAD DATA ---------------- */
   useEffect(() => {
-    if (profile?.id) {
-      loadForecasts();
-      loadRecords();
-    }
+    if (!profile?.id) return;
+    loadRecords();
+    loadForecasts();
   }, [profile?.id]);
 
-  // ✅ FIXED: Role-based forecast loading
+  const loadRecords = async () => {
+    const { data, error } = await supabase
+      .from('records')
+      .select('*')
+      .eq('user_id', profile?.id)
+      .order('created_at', { ascending: false });
+    if (!error) setRecords(data || []);
+  };
+
   const loadForecasts = async () => {
     if (!profile?.id) return;
 
     let query = supabase
       .from('forecasts')
-      .select(`
-        *,
-        user_profiles(email)
-      `)
+      .select(`*, user_profiles(email)`)
       .order('forecast_date');
 
-    // Only filter if NOT admin
     if (!isAdmin) {
       query = query.eq('user_id', profile.id);
     }
 
     const { data, error } = await query;
-
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (error) return console.error(error);
 
     const formatted = data?.map(f => ({
       ...f,
@@ -72,16 +70,7 @@ export function UserDashboard() {
     setForecasts(formatted || []);
   };
 
-  const loadRecords = async () => {
-    const { data, error } = await supabase
-      .from('records')
-      .select('*')
-      .eq('user_id', profile?.id)
-      .order('created_at', { ascending: false });
-
-    if (!error) setRecords(data || []);
-  };
-
+  /* ---------------- FORECAST ACTIONS ---------------- */
   const handleDateClick = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
     const existing = forecasts.find(f => f.forecast_date === dateStr);
@@ -91,7 +80,6 @@ export function UserDashboard() {
     setIsModalOpen(true);
   };
 
-  // ✅ FIXED: Always include user_id on insert
   const handleSaveForecast = async (forecast: any) => {
     if (!profile?.id) return;
 
@@ -112,7 +100,7 @@ export function UserDashboard() {
             title: forecast.title,
             description: forecast.description,
             forecast_date: forecast.forecast_date,
-            user_id: profile.id,
+            user_id: isAdmin ? forecast.user_id || profile.id : profile.id,
           },
         ]);
     }
@@ -125,8 +113,10 @@ export function UserDashboard() {
     await loadForecasts();
   };
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between">
           <div>
@@ -139,8 +129,54 @@ export function UserDashboard() {
         </div>
       </header>
 
+      {/* Main */}
       <main className="max-w-7xl mx-auto px-4 py-8">
 
+        {/* ---------------- RECORDS VIEW ---------------- */}
+        {view === 'records' && (
+          <>
+            <div className="flex justify-between mb-6">
+              <h2 className="text-xl font-semibold">My Records</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowRecordForm(true)}
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded"
+                >
+                  <Plus size={18}/> Add Record
+                </button>
+
+                <button
+                  onClick={() => importRecordsFromExcel(profile?.id)}
+                  className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded"
+                >
+                  <Upload size={18}/> Import
+                </button>
+
+                <button
+                  onClick={() => setView('forecast')}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  <CalendarIcon size={18}/> Forecast Calendar
+                </button>
+              </div>
+            </div>
+
+            {showRecordForm && (
+              <RecordForm
+                onClose={() => { setShowRecordForm(false); loadRecords(); }}
+                onSave={() => { loadRecords(); }}
+              />
+            )}
+
+            <RecordsList
+              records={records}
+              onEdit={() => {}}
+              onDelete={() => { loadRecords(); }}
+            />
+          </>
+        )}
+
+        {/* ---------------- FORECAST VIEW ---------------- */}
         {view === 'forecast' && (
           <>
             <div className="flex justify-between mb-6">
@@ -165,7 +201,7 @@ export function UserDashboard() {
               onNextMonth={() =>
                 setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
               }
-              isAdmin={isAdmin}   {/* ✅ FIXED */}
+              isAdmin={isAdmin}
             />
 
             <ForecastModal
@@ -178,6 +214,7 @@ export function UserDashboard() {
             />
           </>
         )}
+
       </main>
     </div>
   );

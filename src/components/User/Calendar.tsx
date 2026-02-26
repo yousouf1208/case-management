@@ -2,7 +2,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Forecast {
   id: string;
-  user_id: string;
   title: string;
   description: string;
   forecast_date: string;
@@ -29,12 +28,10 @@ export default function Calendar({
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-
   const firstDayOfMonth = new Date(year, month, 1);
   const startDay = firstDayOfMonth.getDay();
 
   const days: Date[] = [];
-
   for (let i = 0; i < startDay; i++) {
     days.push(new Date(year, month, i - startDay + 1));
   }
@@ -58,9 +55,7 @@ export default function Calendar({
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="flex justify-between items-center px-6 py-4 bg-blue-600 text-white">
         <button onClick={onPrevMonth}><ChevronLeft /></button>
-        <h2 className="text-lg font-semibold">
-          {monthNames[month]} {year}
-        </h2>
+        <h2 className="text-lg font-semibold">{monthNames[month]} {year}</h2>
         <button onClick={onNextMonth}><ChevronRight /></button>
       </div>
 
@@ -73,20 +68,14 @@ export default function Calendar({
             <div
               key={index}
               onClick={() => isCurrentMonth && onDateClick(day)}
-              className={`bg-white p-2 min-h-[100px] cursor-pointer hover:shadow
-              ${!isCurrentMonth ? 'opacity-40' : ''}`}
+              className={`bg-white p-2 min-h-[100px] cursor-pointer hover:shadow ${!isCurrentMonth ? 'opacity-40' : ''}`}
             >
               <div className="text-sm font-semibold">{day.getDate()}</div>
               {forecastsForDay.map(f => (
-                <div
-                  key={f.id}
-                  className="text-xs bg-blue-100 p-1 rounded mt-1 truncate"
-                >
+                <div key={f.id} className="text-xs bg-blue-100 p-1 rounded mt-1 truncate">
                   {f.title}
                   {isAdmin && f.user_email && (
-                    <div className="text-[10px] text-blue-600 truncate">
-                      {f.user_email}
-                    </div>
+                    <div className="text-[10px] text-blue-600 truncate">{f.user_email}</div>
                   )}
                 </div>
               ))}
