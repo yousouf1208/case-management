@@ -2,10 +2,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Forecast {
   id: string;
+  user_id: string;
   title: string;
   description: string;
   forecast_date: string;
-  user_email?: string;
+  username?: string;
+  completed?: boolean;
 }
 
 interface CalendarProps {
@@ -25,17 +27,20 @@ export default function Calendar({
   onNextMonth,
   isAdmin,
 }: CalendarProps) {
-
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
   const firstDayOfMonth = new Date(year, month, 1);
   const startDay = firstDayOfMonth.getDay();
 
   const days: Date[] = [];
+
+  // Previous month padding
   for (let i = 0; i < startDay; i++) {
     days.push(new Date(year, month, i - startDay + 1));
   }
 
+  // Current month days
   const lastDate = new Date(year, month + 1, 0).getDate();
   for (let i = 1; i <= lastDate; i++) {
     days.push(new Date(year, month, i));
@@ -55,7 +60,9 @@ export default function Calendar({
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="flex justify-between items-center px-6 py-4 bg-blue-600 text-white">
         <button onClick={onPrevMonth}><ChevronLeft /></button>
-        <h2 className="text-lg font-semibold">{monthNames[month]} {year}</h2>
+        <h2 className="text-lg font-semibold">
+          {monthNames[month]} {year}
+        </h2>
         <button onClick={onNextMonth}><ChevronRight /></button>
       </div>
 
@@ -68,15 +75,18 @@ export default function Calendar({
             <div
               key={index}
               onClick={() => isCurrentMonth && onDateClick(day)}
-              className={`bg-white p-2 min-h-[100px] cursor-pointer hover:shadow ${!isCurrentMonth ? 'opacity-40' : ''}`}
+              className={`bg-white p-2 min-h-[100px] cursor-pointer hover:shadow
+              ${!isCurrentMonth ? 'opacity-40' : ''}`}
             >
               <div className="text-sm font-semibold">{day.getDate()}</div>
               {forecastsForDay.map(f => (
-                <div key={f.id} className="text-xs bg-blue-100 p-1 rounded mt-1 truncate">
-                  {f.title}
-                  {isAdmin && f.user_email && (
-                    <div className="text-[10px] text-blue-600 truncate">{f.user_email}</div>
-                  )}
+                <div
+                  key={f.id}
+                  className={`text-xs p-1 rounded mt-1 truncate ${
+                    f.completed ? 'bg-green-100 line-through text-green-800' : 'bg-blue-100'
+                  }`}
+                >
+                  {f.title} ({f.username})
                 </div>
               ))}
             </div>

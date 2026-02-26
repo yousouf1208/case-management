@@ -14,7 +14,8 @@ interface Forecast {
   title: string;
   description: string;
   forecast_date: string;
-  user_email?: string;
+  username?: string;
+  completed?: boolean;
 }
 
 export function UserDashboard() {
@@ -31,7 +32,6 @@ export function UserDashboard() {
   const [selectedForecast, setSelectedForecast] = useState<Forecast | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  /* ---------------- LOAD DATA ---------------- */
   useEffect(() => {
     if (!profile?.id) return;
     loadRecords();
@@ -50,30 +50,24 @@ export function UserDashboard() {
   const loadForecasts = async () => {
     if (!profile?.id) return;
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('forecasts')
-      .select(`*, user_profiles(email)`)
+      .select(`*, user_profiles(username)`)
       .order('forecast_date');
 
-    if (!isAdmin) {
-      query = query.eq('user_id', profile.id);
-    }
-
-    const { data, error } = await query;
     if (error) return console.error(error);
 
-    const formatted = data?.map(f => ({
+    const formatted = (data || []).map(f => ({
       ...f,
-      user_email: f.user_profiles?.email,
+      username: f.user_profiles?.username || 'Unknown',
     }));
 
-    setForecasts(formatted || []);
+    setForecasts(formatted);
   };
 
-  /* ---------------- FORECAST ACTIONS ---------------- */
   const handleDateClick = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    const existing = forecasts.find(f => f.forecast_date === dateStr);
+    const existing = forecasts.find(f => f.forecast_date === dateStr && f.user_id === profile?.id);
 
     setSelectedDate(date);
     setSelectedForecast(existing || null);
@@ -100,7 +94,7 @@ export function UserDashboard() {
             title: forecast.title,
             description: forecast.description,
             forecast_date: forecast.forecast_date,
-            user_id: isAdmin ? forecast.user_id || profile.id : profile.id,
+            user_id: profile.id,
           },
         ]);
     }
@@ -109,11 +103,27 @@ export function UserDashboard() {
   };
 
   const handleDeleteForecast = async (id: string) => {
+    const forecast = forecasts.find(f => f.id === id);
+    if (!forecast || forecast.user_id !== profile.id) {
+      alert('You can only delete your own forecast');
+      return;
+    }
+
     await supabase.from('forecasts').delete().eq('id', id);
     await loadForecasts();
   };
 
-  /* ---------------- RENDER ---------------- */
+  const handleCompleteForecast = async (id: string, completed: boolean) => {
+    const forecast = forecasts.find(f => f.id === id);
+    if (!forecast || forecast.user_id !== profile.id) {
+      alert('You can only mark your own forecast as completed');
+      return;
+    }
+
+    await supabase.from('forecasts').update({ completed }).eq('id', id);
+    await loadForecasts();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -129,10 +139,7 @@ export function UserDashboard() {
         </div>
       </header>
 
-      {/* Main */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-
-        {/* ---------------- RECORDS VIEW ---------------- */}
         {view === 'records' && (
           <>
             <div className="flex justify-between mb-6">
@@ -164,19 +171,18 @@ export function UserDashboard() {
             {showRecordForm && (
               <RecordForm
                 onClose={() => { setShowRecordForm(false); loadRecords(); }}
-                onSave={() => { loadRecords(); }}
+                onSave={() => loadRecords()}
               />
             )}
 
             <RecordsList
               records={records}
               onEdit={() => {}}
-              onDelete={() => { loadRecords(); }}
+              onDelete={() => loadRecords()}
             />
           </>
         )}
 
-        {/* ---------------- FORECAST VIEW ---------------- */}
         {view === 'forecast' && (
           <>
             <div className="flex justify-between mb-6">
@@ -187,7 +193,7 @@ export function UserDashboard() {
                 <ArrowLeft size={18}/> Back
               </button>
               <h2 className="text-xl font-semibold">
-                {isAdmin ? 'All Forecasts Calendar' : 'My Forecast Calendar'}
+                {isAdmin ? 'All Forecasts Calendar' : 'Forecast Calendar'}
               </h2>
             </div>
 
@@ -209,12 +215,13 @@ export function UserDashboard() {
               onClose={() => setIsModalOpen(false)}
               onSave={handleSaveForecast}
               onDelete={handleDeleteForecast}
+              onComplete={handleCompleteForecast}
               selectedDate={selectedDate}
               existingForecast={selectedForecast}
+              currentUserId={profile?.id}
             />
           </>
         )}
-
       </main>
     </div>
   );
